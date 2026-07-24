@@ -18,7 +18,11 @@ app.post(
 );
 
 //middleware
-app.use(cors());
+app.use(
+  cors({
+    origin: process.env.CLIENT_URL || "*",
+  }),
+);
 app.use(express.json());
 
 const PORT = process.env.PORT || 3000;
@@ -32,6 +36,17 @@ app.use("/api/user", userRouter);
 app.use("/api/chat", chatRouter);
 app.use("/api/message", messageRouter);
 app.use("/api/credit/", creditRouter);
+
+// 404 handler
+app.use((req, res) => {
+  res.status(404).json({ success: false, message: "Route not found" });
+});
+
+// Global error handler (catches anything thrown outside controller try/catch)
+app.use((err, req, res, next) => {
+  console.error(err);
+  res.status(500).json({ success: false, message: "Internal server error" });
+});
 
 const startServer = async () => {
   await connectDB();

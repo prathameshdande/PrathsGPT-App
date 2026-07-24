@@ -4,8 +4,19 @@ import { assets } from "../assets/assets";
 import moment from "moment";
 
 const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
-  const { chats, setSelectedChat, theme, setTheme, user, navigate } =
-    useAppContext();
+  const {
+    chats,
+    selectedChat,
+    setSelectedChat,
+    theme,
+    setTheme,
+    user,
+    navigate,
+    createNewChat,
+    fetchUsersChat,
+    deleteChat,
+    logout,
+  } = useAppContext();
   const [search, setSearch] = useState("");
 
   const filteredChats = chats.filter((chat) =>
@@ -30,6 +41,12 @@ const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
           />
 
           <button
+            onClick={async () => {
+              navigate("/");
+              const created = await createNewChat();
+              if (created) await fetchUsersChat();
+              setIsMenuOpen(false);
+            }}
             className="flex justify-center items-center w-full py-2 text-white
           bg-gradient-to-r from-[#A457F7] to-[#3D81F6]
           text-sm rounded-md cursor-pointer hover:opacity-90 transition"
@@ -68,10 +85,13 @@ const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
                 setSelectedChat(chat);
                 setIsMenuOpen(false);
               }}
-              className="p-3 px-4 dark:bg-[#57317C]/10 border border-gray-300
-            dark:border-[#80609F]/15 rounded-md cursor-pointer
-            flex justify-between items-center group hover:bg-gray-100
-            dark:hover:bg-[#57317C]/20 transition"
+              className={`p-3 px-4 border rounded-md cursor-pointer
+            flex justify-between items-center group transition
+            ${
+              selectedChat?._id === chat._id
+                ? "bg-violet-500/10 border-violet-400/40"
+                : "dark:bg-[#57317C]/10 border-gray-300 dark:border-[#80609F]/15 hover:bg-gray-100 dark:hover:bg-[#57317C]/20"
+            }`}
             >
               <div className="flex-1 overflow-hidden">
                 <p className="truncate">
@@ -86,6 +106,12 @@ const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
               </div>
 
               <img
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (window.confirm("Delete this chat?")) {
+                    deleteChat(chat._id);
+                  }
+                }}
                 src={assets.bin_icon}
                 alt="Delete"
                 className="hidden group-hover:block w-4 ml-2 cursor-pointer not-dark:invert"
@@ -159,7 +185,9 @@ const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
           </p>
           {user && (
             <img
+              onClick={logout}
               src={assets.logout_icon}
+              alt="Logout"
               className="h-5 cursor-pointer hidden not-dark:invert group-hover:block"
             />
           )}

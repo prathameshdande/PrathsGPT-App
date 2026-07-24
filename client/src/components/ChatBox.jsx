@@ -2,9 +2,11 @@ import React, { useEffect, useRef, useState } from "react";
 import { useAppContext } from "../context/AppContext";
 import { assets } from "../assets/assets";
 import Message from "./Message";
+import { toast } from "react-hot-toast";
 
 const ChatBox = () => {
-  const { selectedChat, theme } = useAppContext();
+  const { selectedChat, setSelectedChat, setChats, theme, axios, user, setUser } =
+    useAppContext();
 
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -18,36 +20,75 @@ const ChatBox = () => {
   const onSubmit = async (e) => {
     e.preventDefault();
 
-    if (!prompt.trim()) return;
+    const trimmedPrompt = prompt.trim();
+    if (!trimmedPrompt || loading) return;
+
+    if (!selectedChat) {
+      toast.error("No chat selected. Create a new chat first.");
+      return;
+    }
+
+    const requiredCredits = mode === "image" ? 2 : 1;
+    if (user && user.credits < requiredCredits) {
+      toast.error("Not enough credits. Please buy more credits.");
+      return;
+    }
+
+    const promptCopy = trimmedPrompt;
 
     const newMessage = {
       role: "user",
-      content: prompt,
-      timestamp: new Date(),
+      content: promptCopy,
+      timestamp: Date.now(),
+      isImages: false,
     };
 
     setMessages((prev) => [...prev, newMessage]);
     setPrompt("");
-
-    // Loading
     setLoading(true);
 
-    // Dummy AI Reply
-    setTimeout(() => {
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: "assistant",
-          content:
-            mode === "image"
-              ? "🖼️ Image generated successfully!"
-              : "✨ Hello! How can I help you?",
-          timestamp: new Date(),
-        },
-      ]);
+    try {
+      const endpoint = mode === "image" ? "/api/message/image" : "/api/message/text";
+      const { data } = await axios.post(endpoint, {
+        chatId: selectedChat._id,
+        prompt: promptCopy,
+        isPublished,
+      });
 
+      if (data.success) {
+        setMessages((prev) => [...prev, data.reply]);
+
+        // keep the sidebar chat list & selected chat's messages in sync
+        setChats((prevChats) =>
+          prevChats.map((chat) =>
+            chat._id === selectedChat._id
+              ? { ...chat, messages: [...chat.messages, newMessage, data.reply] }
+              : chat,
+          ),
+        );
+        setSelectedChat((prev) =>
+          prev
+            ? { ...prev, messages: [...prev.messages, newMessage, data.reply] }
+            : prev,
+        );
+
+        // reflect credit deduction locally without a full refetch
+        if (user) {
+          setUser((prev) =>
+            prev ? { ...prev, credits: prev.credits - requiredCredits } : prev,
+          );
+        }
+      } else {
+        toast.error(data.message || "Something went wrong");
+        // roll back the optimistic user message on failure
+        setMessages((prev) => prev.filter((m) => m !== newMessage));
+      }
+    } catch (error) {
+      toast.error(error.response?.data?.message || error.message);
+      setMessages((prev) => prev.filter((m) => m !== newMessage));
+    } finally {
       setLoading(false);
-    }, 1000);
+    }
   };
 
   // LOAD SELECTED CHAT

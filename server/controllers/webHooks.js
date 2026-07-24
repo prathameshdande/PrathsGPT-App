@@ -36,6 +36,13 @@ export const stripeWebHook = async (req, res) => {
             isPaid: false,
           });
 
+          if (!transaction) {
+            return res.json({
+              received: true,
+              message: "Transaction already processed or not found",
+            });
+          }
+
           //updates credit in user account and marks transaction as paid
           await User.updateOne(
             {
@@ -63,13 +70,11 @@ export const stripeWebHook = async (req, res) => {
         break;
     }
 
-    res.json({
+    return res.json({
       received: true,
     });
   } catch (error) {
     console.error("Error processing webhook event:", error);
     return res.status(500).send("Error processing webhook event");
   }
-
-  res.json({ received: true });
 };

@@ -2,9 +2,12 @@ import User from "../models/User.js";
 import jwt from "jsonwebtoken";
 
 export const authMiddleware = async (req, res, next) => {
-  console.log(typeof next);
   try {
-    const token = req.headers.authorization?.split(" ")[1];
+    // Accept both "Bearer <token>" and a raw token in the Authorization header
+    const authHeader = req.headers.authorization || "";
+    const token = authHeader.startsWith("Bearer ")
+      ? authHeader.split(" ")[1]
+      : authHeader;
 
     if (!token) {
       return res.status(401).json({
@@ -15,6 +18,7 @@ export const authMiddleware = async (req, res, next) => {
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
+    // Exclude only the password field, keep everything else (name, email, credits, etc.)
     const user = await User.findById(decoded.id).select("-password");
 
     if (!user) {

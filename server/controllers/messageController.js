@@ -3,33 +3,45 @@ import openai from "../configs/openai.js";
 import Chat from "../models/Chat.js";
 import User from "../models/User.js";
 import axios from "axios";
-// import { encode, decode } from "base-64";
 
 // text-based ai chat controller
 export const textMessageController = async (req, res) => {
   try {
     const userId = req.user._id;
 
-    //checking credits
-    if (req.user.credits < 2) {
+    // checking credits
+    if (req.user.credits < 1) {
       return res.json({
         success: false,
         message:
           "You don't have enough credits to use this feature. Please buy more credits.",
       });
     }
+
     const { chatId, prompt } = req.body;
 
+    if (!chatId || !prompt?.trim()) {
+      return res.json({
+        success: false,
+        message: "chatId and prompt are required",
+      });
+    }
+
     const chat = await Chat.findOne({ userId, _id: chatId });
+
+    if (!chat) {
+      return res.json({ success: false, message: "Chat not found" });
+    }
+
     chat.messages.push({
       role: "user",
-      text: prompt,
+      content: prompt,
       timestamp: Date.now(),
-      isImage: false,
+      isImages: false,
     });
 
     const { choices } = await openai.chat.completions.create({
-      model: "gemini-3-flash-preview",
+      model:"gemini-3.5-flash",
       messages: [
         {
           role: "user",
@@ -39,15 +51,11 @@ export const textMessageController = async (req, res) => {
     });
 
     const reply = {
-      ...choices[0].message,
+      role: "assistant",
+      content: choices[0].message.content,
       timestamp: Date.now(),
-      isImage: false,
+      isImages: false,
     };
-
-    res.json({
-      success: true,
-      reply,
-    });
 
     chat.messages.push(reply);
     await chat.save();
@@ -61,6 +69,10 @@ export const textMessageController = async (req, res) => {
       },
     );
 
+    res.json({
+      success: true,
+      reply,
+    });
   } catch (error) {
     res.json({
       success: false,
@@ -69,11 +81,11 @@ export const textMessageController = async (req, res) => {
   }
 };
 
-//image generation controller
+// image generation controller
 export const imageMessageController = async (req, res) => {
   try {
     const userId = req.user._id;
-    //checking credits
+    // checking credits
     if (req.user.credits < 2) {
       return res.json({
         success: false,
@@ -83,31 +95,43 @@ export const imageMessageController = async (req, res) => {
     }
 
     const { chatId, prompt, isPublished } = req.body;
-    //finding a chat from this code line
+
+    if (!chatId || !prompt?.trim()) {
+      return res.json({
+        success: false,
+        message: "chatId and prompt are required",
+      });
+    }
+
+    // finding the chat
     const chat = await Chat.findOne({ userId, _id: chatId });
-    //pushing messages to the chat
+
+    if (!chat) {
+      return res.json({ success: false, message: "Chat not found" });
+    }
+
+    // pushing the user's prompt to the chat
     chat.messages.push({
       role: "user",
-      text: prompt,
+      content: prompt,
       timestamp: Date.now(),
-      isImage: false,
+      isImages: false,
     });
 
-    //encode the prompt
+    // encode the prompt
     const encodedPrompt = encodeURIComponent(prompt);
-    //generate image from the prompt using imagekit
+    // generate image from the prompt using imagekit
     const generateImageURL = `${process.env.IMAGEKIT_URL_ENDPOINT}/ik-genimg-prompt-${encodedPrompt}/prathsgpt/${Date.now()}.png?tr=w-800,h-800`;
 
-    //trigger generation by fetching from imagekit
-
+    // trigger generation by fetching from imagekit
     const aiImageResponse = await axios.get(generateImageURL, {
-      responseType: "arrayBuffer",
+      responseType: "arraybuffer",
     });
 
-    //convert to Base64
+    // convert to Base64
     const base64Image = `data:image/png;base64,${Buffer.from(aiImageResponse.data, "binary").toString("base64")}`;
 
-    //upload the image to imagekit
+    // upload the image to imagekit
     const uploadResponse = await imageKit.upload({
       file: base64Image,
       fileName: `${Date.now()}.png`,
@@ -118,16 +142,14 @@ export const imageMessageController = async (req, res) => {
       role: "assistant",
       content: uploadResponse.url,
       timestamp: Date.now(),
-      isImage: true,
-      isPublished,
+      isImages: true,
+      isPublished: !!isPublished,
     };
 
-    res.json({
-      success: true,
-      reply,
-    });
+    chat.messages.push(reply);
+    await chat.save();
 
-    //this line deduct two credit from the user for image generation
+    // deduct two credits from the user for image generation
     await User.updateOne(
       { _id: userId },
       {
@@ -137,9 +159,36 @@ export const imageMessageController = async (req, res) => {
       },
     );
 
-    //this line stores an data into the db
-    chat.messages.push(reply);
-    await chat.save();
+    res.json({
+      success: true,
+      reply,
+    });
+  } catch (error) {
+    res.json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
+// public controller for community/published images
+export const getPublishedImages = async (req, res) => {
+  try {
+    const chats = await Chat.find({ "messages.isPublished": true });
+
+    const images = chats.flatMap((chat) =>
+      chat.messages
+        .filter((message) => message.isImages && message.isPublished)
+        .map((message) => ({
+          imageUrl: message.content,
+          userName: chat.userName,
+        })),
+    );
+
+    res.json({
+      success: true,
+      images: images.reverse(),
+    });
   } catch (error) {
     res.json({
       success: false,

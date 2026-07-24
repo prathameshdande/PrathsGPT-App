@@ -14,13 +14,12 @@ import "prismjs/components/prism-css";
 import "prismjs/components/prism-markup";
 
 const Message = ({ message }) => {
-
-  // Prevent crash
-  if (!message) return null;
-
   useEffect(() => {
     Prism.highlightAll();
   }, [message?.content]);
+
+  // Prevent crash (must come after hooks to satisfy rules-of-hooks)
+  if (!message) return null;
 
   return (
     <div className="w-full px-2 sm:px-4">
@@ -111,7 +110,7 @@ const Message = ({ message }) => {
           >
 
             {/* IMAGE MESSAGE */}
-            {message.isImage ? (
+            {message.isImages ? (
               <img
                 src={message.content}
                 alt="message"

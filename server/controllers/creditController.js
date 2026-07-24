@@ -77,12 +77,12 @@ export const purchasePlan = async (req, res) => {
 
     //creating a new transaction
 
-    const transaction = new Transaction ({
+    const transaction = await Transaction.create({
       userId: userId,
       planId: plan._id,
       amount: plan.price,
       credits: plan.credits,
-      isPaid: true,
+      isPaid: false,
     });
 
     const { origin } = req.headers;

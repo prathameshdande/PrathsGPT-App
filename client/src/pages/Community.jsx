@@ -1,14 +1,28 @@
 import React, { useEffect, useState } from "react";
-import { dummyPublishedImages } from "../assets/assets";
+import { toast } from "react-hot-toast";
 import Loading from "./Loading";
+import { useAppContext } from "../context/AppContext";
 
 const Community = () => {
-  const [images, setImages] = useState();
+  const [images, setImages] = useState([]);
   const [loading, setLoading] = useState(true);
+  const { axios } = useAppContext();
 
   const fetchImages = async () => {
-    setImages(dummyPublishedImages);
-    setLoading(false);
+    try {
+      const { data } = await axios.get("/api/message/published");
+      if (data.success) {
+        setImages(data.images);
+      } else {
+        toast.error(data.message || "Failed to load community images");
+      }
+    } catch (error) {
+      toast.error(
+        error.response?.data?.message || "Failed to load community images",
+      );
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -29,6 +43,7 @@ const Community = () => {
               key={index}
               href={item.imageUrl}
               target="_blank"
+              rel="noopener noreferrer"
               className="relative group block rounded-lg overflow-hidden  border border-gray-200 dark:border-purple-700 shadow-sm hover:shadow-md transition-shadow duration-300"
             >
               <img
@@ -36,12 +51,11 @@ const Community = () => {
                 alt=""
                 className="w-full h-40 md:h-50 2xl:h-62 object-cover group-hover:scale-105 transition-transform duration-300 ease-in-out"
               />
-              
+
               <p className="absolute bottom-0 right-0 text-xs bg-black/50 backdrop-blur text-white px-4 py-1 rounded-tl-xl opacity-0 group-hover:opacity-100 transition duration-300">
                 Created by {item.userName}
               </p>
             </a>
-            // console.log("Image is loading....");
           ))}
         </div>
       ) : (
